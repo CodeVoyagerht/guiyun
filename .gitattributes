@@ -1,0 +1,7 @@
+# 统一 LF：仓库里存 LF，Windows 检出也保持 LF，
+# 免得以后每次提交都出现整文件 "CRLF will be replaced" 的噪声 diff。
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.zip binary
+*.exe binary

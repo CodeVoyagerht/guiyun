@@ -1,0 +1,19 @@
+# 本机运行时产物，不进仓库
+.fixture/
+.tools/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# guiyun 自己的运行目录默认在 ~/.guiyun，不在仓库里；
+# 万一有人把 --home 指到仓库内，plan/index 也别进版本库
+plan.json
+index.sqlite
+runs/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+*.swp

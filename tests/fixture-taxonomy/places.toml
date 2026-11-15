@@ -1,0 +1,30 @@
+# 测试用地点清单（跟归藏同一份格式）。
+# 三个地点故意分在三个市，好验证「市层会不会出现」；省只有一个，所以省折叠。
+
+[[place]]
+name = "泡泡塘森林溪谷"
+aliases = ["泡泡塘", "森林溪谷"]
+province = "河南"
+city = "郑州"
+lat = 34.7412
+lon = 113.7210
+radius_km = 3.0
+areas = ["水世界|水上乐园", "露营区", "花海"]
+
+[[place]]
+name = "开封古城"
+aliases = ["开封", "清明上河园"]
+province = "河南"
+city = "开封"
+lat = 34.7978
+lon = 114.3072
+radius_km = 6.0
+
+[[place]]
+name = "洛阳老君山"
+aliases = ["老君山", "洛阳"]
+province = "河南"
+city = "洛阳"
+lat = 33.7735
+lon = 111.6426
+radius_km = 8.0

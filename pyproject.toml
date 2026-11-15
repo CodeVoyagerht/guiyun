@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "guiyun"
+version = "0.1.0"
+description = "把网盘里的摄影/航拍素材按 项目/日期/机型 归位：只搬不删、全程记账、一条命令全部撤回"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "天天（北屿升）" }]
+keywords = ["photography", "cloud-drive", "baidu", "housekeeping", "cli"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: System :: Archiving",
+]
+# 零第三方依赖是硬约束：只用标准库（urllib / json / sqlite3 / tomllib / subprocess）。
+dependencies = []
+
+[project.scripts]
+guiyun = "guiyun.cli:main"
+
+[tool.setuptools]
+packages = ["guiyun", "guiyun.backends"]
