@@ -249,6 +249,32 @@ def cmd_undo(args) -> int:
     return EXIT_OK if out.ok else EXIT_ERR
 
 
+def _run_stats(row) -> dict:
+    try:
+        return json.loads(row["stats"] or "{}")
+    except json.JSONDecodeError:
+        return {}
+
+
+def _say_recent_runs(idx, limit: int = 5) -> None:
+    runs = idx.runs(limit)
+    if not runs:
+        return
+    say("")
+    say("最近的整理：")
+    for r in runs:
+        st = _run_stats(r)
+        extra = ""
+        if st.get("untouched"):
+            extra += f"  还有 {st['untouched']} 条没轮到"
+        if st.get("aborted"):
+            extra += f"  中止：{st['aborted']}"
+        say(
+            f"  {'✓' if r['ok'] else '✗'} {r['id']}  搬 {st.get('moved', 0)} 失败 {st.get('failed', 0)}"
+            + extra
+        )
+
+
 def cmd_status(args) -> int:
     cfg = _load_cfg(args)
     say(f"配置文件：{cfg.path}")
@@ -283,6 +309,10 @@ def cmd_status(args) -> int:
     n = idx.count()
     if n == 0:
         say("索引：还没扫过（guiyun scan）")
+        # 索引空不等于"什么都没发生过"：可能刚扫完就被清过、或者上一次
+        # apply 熔断/失败之后还没重扫。整理的流水账照样要给出来，
+        # 不然用户看不到"上次停在哪、还剩几条没搬"。
+        _say_recent_runs(idx)
         return EXIT_OK
     at = idx.get_meta("scanned_at")
     when = time.strftime("%Y-%m-%d %H:%M", time.localtime(int(at))) if at else "未知"
@@ -305,18 +335,7 @@ def cmd_status(args) -> int:
 
     runs = idx.runs(5)
     if runs:
-        say("")
-        say("最近的整理：")
-        for r in runs:
-            try:
-                st = json.loads(r["stats"] or "{}")
-            except json.JSONDecodeError:
-                st = {}
-            state = "✓" if r["ok"] else "✗"
-            say(
-                f"  {state} {r['id']}  搬 {st.get('moved', 0)} 失败 {st.get('failed', 0)}"
-                + (f"  中止：{st.get('aborted')}" if st.get("aborted") else "")
-            )
+        _say_recent_runs(idx, 5)
     return EXIT_OK
 
 

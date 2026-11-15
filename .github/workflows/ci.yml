@@ -61,6 +61,10 @@ jobs:
       - name: 撞名
         run: python tests/conflict.py
 
+      # 熔断那一刻台账得说清「停在哪、还剩几条」，undo 不能被半截记录骗到。
+      - name: 熔断台账
+        run: python tests/abort.py
+
   lint:
     name: 技能与预设
     runs-on: ubuntu-latest
