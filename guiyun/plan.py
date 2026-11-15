@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from . import manual as manual_mod
@@ -254,10 +254,16 @@ def build(cfg: Config, idx: Index) -> Plan:
         year_only = bool(it.date and len(it.date) == 4)
         # 靠上传时间推出来的日期不能进路径——待定就老老实实写「未知时间」
         path_when = None if verdict.date_kind == "mtime" else when
-        # 待定也走同一套：归藏自己知道该进「待定」还是留在抖音枝里
+        # 待定也走同一套：归藏自己知道该进「待定」还是留在抖音枝里。
+        # 但两边的「待定」不是一个口径：归云多一条「日期只来自上传时间」。
+        # 落位规则：活动 / 抖音 这两枝本身就是要放的地方（届次/抖音才是索引键），
+        # 没有日期也留在枝里写「未知时间」；只有「区域」枝缺日期才进待定桶。
+        judge = decision
+        if it.status == "pending" and getattr(decision, "branch", "region") == "region":
+            judge = replace(decision, status="needs_review")
         target = target_for(
             gcfg,
-            decision,
+            judge,
             path_when,
             "",
             layout=layout if it.status != "pending" else None,

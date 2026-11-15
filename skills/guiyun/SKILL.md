@@ -5,7 +5,7 @@ license: MIT
 compatibility: 需要 Python 3.11+，零第三方依赖（只用标准库）。百度网盘走 BaiduPCS-Go 单文件 CLI（仓库 .tools/bpc/ 里带了一份，也可在配置里指任意路径）；也能对接任意本地同步目录（backend.kind = "local"），不需要登录。**分类规则借自「归藏 guicang」**（同一套 places.toml / activities.toml，需先 `pip install -e <归藏仓库>`）。
 metadata:
   author: 天天（北屿升）
-  version: "0.2.0"
+  version: "0.2.1"
   repo: local
 ---
 
@@ -248,8 +248,14 @@ guiyun status && guiyun scan && guiyun plan
 | 5 | 名字里有无人机机型（Mavic / Mini / Air / Phantom / Inspire / Matrice / Neo / FCxxxx） | 0.84 |
 | 6 | 同一堆里有**同名 `.SRT`**（云端的遥测线索） | 0.80 |
 | 7 | 名字里有地面机型（Sony / Canon / Fuji / Lumix / ILCE / EOS / X-T / Osmo / Pocket / iPhone） | 0.80 |
-| 8 | 名字以 `DJI_` 开头但机型未知 | 0.55 |
-| 9 | 什么都没有 | 0.50（进待定） |
+| 8 | 文件名是手机命名（`IMG_` / `PXL_` / `VID_` / 截图 / `mmexport`） | 0.80 |
+| 9 | 文件名是运动相机命名（`GOPR` / `GX01` / `HERO`） | 0.80 |
+| 10 | 文件名是相机命名（`MVI_` / `MOV_` / `DSC_` / `P1000123`） | 0.78 |
+| 11 | 名字以 `DJI_` 开头但机型未知 | 0.55 |
+| 12 | 什么都没有 | 0.50（进待定） |
+
+8–10 号只在「读不到机型」时才生效：整堆搬时目录名不带这些前缀，归云会拿堆里**第一个媒体文件名**
+顶上；`DJI_` 不参与前缀猜测（那是无人机），仍走 11 号进待定。
 
 **机型**（只认名字里明写的，云端没有 EXIF）：落到路径里的是「厂牌 + 型号」，且**只有当同一个
 （分支/地点/区域/周期/拍摄类型）下真的出现两台以上机器时才分层**。
