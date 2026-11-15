@@ -11,7 +11,14 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from .backends.base import AuthError, Backend, BackendError, RateLimitError, join
+from .backends.base import (
+    AuthError,
+    Backend,
+    BackendError,
+    RateLimitError,
+    join,
+    split_ext,
+)
 from .config import Config
 from .index import Index
 from .plan import Item, Plan
@@ -24,6 +31,7 @@ class Outcome:
     failed: int = 0
     skipped: int = 0
     gone: int = 0
+    renamed: int = 0
     aborted: str | None = None
     errors: list[tuple[str, str]] = field(default_factory=list)
     elapsed: float = 0.0
@@ -36,6 +44,8 @@ class Outcome:
 
     def line(self) -> str:
         bits = [f"搬了 {self.moved} 条"]
+        if self.renamed:
+            bits.append(f"其中 {self.renamed} 条撞名改了名")
         if self.gone:
             bits.append(f"已不在原处 {self.gone} 条")
         if self.skipped:
@@ -64,6 +74,17 @@ def _is_gone(err: str) -> bool:
     if "通配符" in text:
         return False
     return any(h in text for h in _GONE_HINTS)
+
+
+def _suffixed(dst: str, n: int, is_dir: bool) -> str:
+    """`…/航拍/开封古城` → `…/航拍/开封古城 (2)`；文件名保住扩展名。"""
+    parent, _, name = dst.rpartition("/")
+    if is_dir or "." not in name:
+        new = f"{name} ({n})"
+    else:
+        stem, ext = split_ext(name)
+        new = f"{stem} ({n}).{ext}"
+    return f"{parent}/{new}" if parent else f"/{new}"
 
 
 def apply(
@@ -114,9 +135,12 @@ def apply(
                 continue
 
             err = ""
-            for attempt in range(cfg.apply_retry + 1):
+            actual = item.dst
+            tries = 0
+            renamed = 0
+            while True:
                 try:
-                    backend.move(item.src, item.dst)
+                    backend.move(item.src, actual)
                     err = ""
                     break
                 except RateLimitError as exc:
@@ -131,23 +155,43 @@ def apply(
                     break
                 except BackendError as exc:
                     err = str(exc)
-                    if attempt < cfg.apply_retry and not _is_gone(err):
-                        time.sleep(1.0 + attempt)
+                    if "目标已存在" in err:
+                        # 方案是零 API 的预览，它看不见库根底下已经有什么
+                        # （scan 按设计跳过库根）。所以撞名在真搬的这一刻解决：
+                        # 换个名字再搬，别让 plan 说"可搬"、apply 逐条报错。
+                        if cfg.on_conflict == "skip":
+                            err = f"{err}（on_conflict = skip：这一条没搬）"
+                            break
+                        renamed += 1
+                        if renamed > 9:
+                            err = f"{err}（已经试了 9 个名字都撞）"
+                            break
+                        actual = _suffixed(item.dst, renamed + 1, item.is_dir)
+                        continue
+                    if _is_gone(err) or tries >= cfg.apply_retry:
+                        break
+                    tries += 1
+                    time.sleep(1.0 + tries)
 
+            changed = bool(not err and actual != item.dst)
+            if changed:
+                item.dst = actual          # 台账要记真搬去的地方，不是方案里的
             if out.aborted:
-                idx.log_op(run_id, seq, "move", item.src, item.dst, False, err or out.aborted)
+                idx.log_op(run_id, seq, "move", item.src, actual, False, err or out.aborted)
                 break
             if err and _is_gone(err):
                 # 源已经不在了：上一轮跑过、或者用户自己搬过，不是失败。
                 out.gone += 1
-                idx.log_op(run_id, seq, "move", item.src, item.dst, False, f"已不在原处：{err}")
+                idx.log_op(run_id, seq, "move", item.src, actual, False, f"已不在原处：{err}")
             elif err:
                 out.failed += 1
                 out.errors.append((item.src, err))
-                idx.log_op(run_id, seq, "move", item.src, item.dst, False, err)
+                idx.log_op(run_id, seq, "move", item.src, actual, False, err)
             else:
                 out.moved += 1
-                idx.log_op(run_id, seq, "move", item.src, item.dst, True, None)
+                if changed:
+                    out.renamed += 1
+                idx.log_op(run_id, seq, "move", item.src, actual, True, None)
 
             time.sleep(cfg.apply_throttle)
     except AuthError as exc:
