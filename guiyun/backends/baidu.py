@@ -308,11 +308,19 @@ class BaiduBackend(Backend):
 
     def delete(self, path: str, *, expect_empty: bool = False) -> None:
         # 云端 rm 一个非空目录 = 递归删整棵子树（进回收站，但结构没了）。
-        # 所以删目录必须由调用方显式声明它是空的。
-        if not expect_empty and self._is_cached_dir(path):
-            raise BackendError(
-                f"删目录要显式声明它是空的（expect_empty=True）：{path}"
-            )
+        # 所以删目录必须由调用方显式声明它是空的。查不清也得拦着——放过去
+        # 等于「列目录失败就递归删」，这是最不该 fail-open 的一处。
+        if not expect_empty:
+            try:
+                is_dir = self._is_cached_dir(path)
+            except BackendError as exc:
+                raise BackendError(
+                    f"删之前查不清 {path} 是不是目录（{exc}）。"
+                    "这种时候不能闭眼删——先 guiyun status 看看网盘通不通，"
+                    "或者确认它是空的之后由 clean 带 expect_empty 删。"
+                ) from exc
+            if is_dir:
+                raise BackendError(f"删目录要显式声明它是空的（expect_empty=True）：{path}")
         out = self._run(["rm", path])
         self._expect_ok(out, ("已删除",), f"删除 {path} ")
         parent, _, name = path.rpartition("/")
@@ -320,15 +328,16 @@ class BaiduBackend(Backend):
         self._ls_cache.pop(path, None)
 
     def _is_cached_dir(self, path: str) -> bool:
-        """是不是目录。缓存里有就不用问网盘；没有才付一次往返。"""
+        """是不是目录。缓存里有就不用问网盘；没有才付一次往返。
+
+        查不出来就抛错，**不要**返回 False：调用方拿 False 当"不是目录"，
+        于是 rm 一个非空目录 = 递归删。
+        """
         parent, _, name = path.rpartition("/")
         entry = self._ls_cache.get(parent or "/", {}).get(name)
         if entry is not None:
             return entry.is_dir
-        try:
-            info = self.stat(path)
-        except BackendError:
-            return False
+        info = self.stat(path)
         return bool(info and info.is_dir)
 
     def _after_move(self, src: str, dst: str) -> None:

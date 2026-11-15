@@ -229,6 +229,9 @@ def decide(
     hint = _srt_hint(decision, filename, hint_names, g)
     if hint:
         out.reasons.append(hint)
+    blanked = _blank_default_shot(decision)
+    if blanked:
+        out.reasons.append(blanked)
     out.project = getattr(decision, "region", None)
     out.project_conf = float(getattr(decision, "region_conf", 0.0))
     for note in getattr(decision, "notes", []) or []:
@@ -244,6 +247,29 @@ def decide(
 def _stem(name: str) -> str:
     head, dot, _ = name.rpartition(".")
     return (head if dot else name).strip().lower()
+
+
+# 归藏在「机型认不出来」时会兜底成「地拍」（camera:unknown）或者干脆按
+# 「照片/视频默认地拍」。那是默认值，不是证据：照片被塞进「地拍/」比进
+# 「待定/」更糟——待定一眼看得出没定，「地拍」看着像个结论。
+_DEFAULT_SHOT_RULES = {"camera:unknown", "default:photo", "default:video"}
+# 兜底档最高只到 0.62（camera:unknown）。有别的证据把把握度抬过这条线，
+# 就说明标签不再是"默认值"了——比如同名 .SRT 把航拍抬到 0.80，那种不能抹。
+_DEFAULT_SHOT_CONF = 0.62
+
+
+def _blank_default_shot(decision) -> str:
+    """把兜底出来的拍摄类型改记「其他」，不让默认值冒充结论。"""
+    rules = {getattr(e, "rule", "") for e in (getattr(decision, "shot_evidence", []) or [])}
+    if not (rules & _DEFAULT_SHOT_RULES):
+        return ""
+    if float(getattr(decision, "shot_conf", 0.0) or 0.0) > _DEFAULT_SHOT_CONF:
+        return ""
+    old = getattr(decision, "shot_type", "")
+    if not old or old == "其他":
+        return ""
+    decision.shot_type = "其他"
+    return f"拍摄类型原来是兜底的「{old}」（机型认不出来，不该当地拍算），已改记「其他」"
 
 
 def _srt_hint(decision, filename: str, hint_names, g) -> str:

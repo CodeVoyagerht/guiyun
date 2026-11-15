@@ -47,9 +47,25 @@ def touch(path: str, size: int):
     os.utime(path, (stamp, stamp))
 
 
+def _wipe(path: str, tries: int = 5) -> None:
+    """清掉上一轮留下的临时库。
+
+    Windows 上 sqlite 句柄偶尔比进程晚一步释放，`rmtree` 会抛
+    PermissionError(32)；重试几次再放弃，别让清理把测试本身弄红。
+    """
+    if not os.path.isdir(path):
+        return
+    for _ in range(tries):
+        try:
+            shutil.rmtree(path)
+            return
+        except PermissionError:
+            time.sleep(0.4)
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def main() -> int:
-    if os.path.isdir(TMP):
-        shutil.rmtree(TMP)
+    _wipe(TMP)
     home = os.path.join(TMP, "home")
     drive = os.path.join(TMP, "drive")
 
@@ -79,8 +95,10 @@ def main() -> int:
     original = text
     for line in text.splitlines():
         if line.startswith('root = ""'):
-            # 先按人最可能的方式粘路径：原样反斜杠塞进双引号里 —— 这是坏的
-            text = text.replace(line, f'root = "{drive}"', 1)
+            # 先按人最可能的方式粘路径：原样反斜杠塞进双引号里 —— 这是坏的。
+            # 这里故意用 Windows 字样而不是本机路径：TOML 把 `\素` 当非法转义，
+            # 这个坑跟平台无关（CI 的 Linux 上没有反斜杠，用真路径就复现不出来）。
+            text = text.replace(line, r'root = "E:\素材\drive"', 1)
             break
     open(cfg_path, "w", encoding="utf-8").write(text)
 
@@ -147,7 +165,9 @@ def main() -> int:
     pending = {i["src"]: i["dst"] for i in dsts.values() if i["status"] == "pending"}
     # dst 永远是「目标目录 + 搬的单位名」，不是只到目录 —— 漏了末段名字就少一截
     assert pending.get("/未整理/泉州西街") == "/摄影库/待定/未知时间/地拍/泉州西街", pending
-    assert pending.get("/未整理/杂项") == "/摄影库/待定/未知时间/地拍/杂项", pending
+    # 拍摄类型也是兜底的：`随便一张.jpg` 既没机型也没前缀，落到「其他」而不是
+    # 「地拍」——默认值不该冒充结论（decide._blank_default_shot 干的活）。
+    assert pending.get("/未整理/杂项") == "/摄影库/待定/未知时间/其他/杂项", pending
     say("  ✓ 厦门鼓浪屿 2024-05-18 整堆可搬（周期层）；泉州西街进待定（只有上传时间，不编日子）")
 
     # ── ⑥ review 钉住泉州西街，再 plan ───────────────────────────────

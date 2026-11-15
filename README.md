@@ -41,8 +41,24 @@
 ## 装
 
 ```bash
-python -m pip install -e .          # 需要 Python 3.11+，零第三方依赖
+pip install -e .                     # 需要 Python 3.11+
 ```
+
+**还要装姊妹项目「归藏」guicang**——判定规则（地点、活动、拍摄类型）不在这个仓库里，
+两边的分类法共用一份 `places.toml` / `activities.toml`：
+
+```bash
+pip install -e <归藏仓库路径>        # 归藏的 src 目录里就是包本体
+```
+
+不装的话 `guiyun` 装得上，但 `plan` / `apply` 会直接告诉你要先去装归藏：
+
+```
+归云现在借用「归藏」的分类规则，得先把归藏装上
+```
+
+这也是为什么 `pyproject.toml` 里 `dependencies = []` 看着像零依赖——本仓库自己的代码
+确实只用标准库，但**跑起来**需要归藏（它还没发到 PyPI，所以没写进 dependencies）。
 
 百度网盘还要一份 BaiduPCS-Go（单文件 CLI）。仓库带了 Windows x64 版：
 
@@ -125,7 +141,7 @@ root = "E:\\网盘镜像"  # local 后端的命名空间根：/摄影库 ↔ E:\
 ## 仓库结构
 
 ```
-guiyun/                 引擎（零依赖）
+guiyun/                 引擎（本仓库代码只用标准库；判定规则来自归藏 guicang）
 ├─ backends/            base 契约 + baidu（BaiduPCS-Go）+ local
 ├─ config.py            ~/.guiyun/guiyun.toml 读写与校验
 ├─ index.py             SQLite 索引 + 遍历 + 台账

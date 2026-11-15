@@ -80,6 +80,13 @@ def config_path(home: Path) -> Path:
 
 
 # ── 解析 ────────────────────────────────────────────────────────────────────
+def _type_name(kind) -> str:
+    """`(int, float)` 这种元组也要能报出人话，不然拼报错字符串时自己先崩。"""
+    if isinstance(kind, tuple):
+        return " 或 ".join(str(getattr(k, "__name__", k)) for k in kind)
+    return str(getattr(kind, "__name__", kind))
+
+
 def _get(table: dict, key: str, default, kind, where: str):
     if key not in table:
         return default
@@ -89,8 +96,21 @@ def _get(table: dict, key: str, default, kind, where: str):
             raise ConfigError(f"{where}.{key} 应该是数组，现在是 {type(val).__name__}")
         return val
     if not isinstance(val, kind):
-        raise ConfigError(f"{where}.{key} 应该是 {kind.__name__}，现在是 {type(val).__name__}")
+        raise ConfigError(f"{where}.{key} 应该是 {_type_name(kind)}，现在是 {type(val).__name__}")
     return val
+
+
+def _get_str_list(table: dict, key: str, default: list[str], where: str) -> list[str]:
+    """扩展名清单必须是一串字符串。
+
+    写成 `include = "jpg"` 时如果不拦，`for x in "jpg"` 会静默变成
+    `['j','p','g']`，然后一个文件都匹配不上——不报错，只是永远没结果。
+    """
+    val = _get(table, key, default, list, where)
+    bad = [x for x in val if not isinstance(x, str)]
+    if bad:
+        raise ConfigError(f"{where}.{key} 里每项都要是字符串，现在混了 {bad!r}")
+    return [str(x).lower().lstrip(".") for x in val]
 
 
 def _toml_hint(message: str) -> str:
@@ -109,7 +129,7 @@ def _toml_hint(message: str) -> str:
             "  root = 'D:\\素材'          （用单引号，里面不转义 —— 推荐，路径直接粘）"
         )
     if "duplicate" in low or "overwrite" in low or "already exists" in low:
-        return "\n\n提示：同一个键（或同一个 [段.键]）写了两次。检查是不是重复了一段 [[projects.items]] 的字段。"
+        return "\n\n提示：同一个键（或同一个 [段.键]）写了两次，检查一下有没有重复的段落或键。"
     if "expected newline" in low or "invalid value" in low:
         return "\n\n提示：这行值后面可能多了逗号，或者字符串的引号没配成对。"
     return ""
@@ -184,9 +204,9 @@ def load(home: Path | None = None) -> Config:
 
     match = raw.get("match", {}) or {}
     if "include" in match:
-        cfg.match_include = [str(x).lower().lstrip(".") for x in match["include"]]
+        cfg.match_include = _get_str_list(match, "include", cfg.match_include, "match")
     if "exclude" in match:
-        cfg.match_exclude = [str(x).lower().lstrip(".") for x in match["exclude"]]
+        cfg.match_exclude = _get_str_list(match, "exclude", cfg.match_exclude, "match")
     cfg.match_min_size = _get(match, "min_size", cfg.match_min_size, int, "match")
 
     if raw.get("projects"):
@@ -231,7 +251,7 @@ max_files = 200000                 # 保险丝：超过就停，别把整个网�
 
 [taxonomy]
 source = ""                        # places.toml / activities.toml 在哪个目录。一般指到本机素材库的
-                                   # .guicang 目录，例：source = 'D:\素材\.guicang'
+                                   # .guicang 目录，例：source = 'D:/素材/.guicang'
                                    # 留空就用 ~/.guiyun 下自己那份
 
 [layout]

@@ -493,14 +493,56 @@ def cmd_review(args) -> int:
     return EXIT_OK
 
 
+def _recent_apply_srcs(idx) -> list[str]:
+    """最近一次 apply 搬走的那些源目录（去重、保持顺序）。
+
+    clean 默认只清这些：整理现场就是这儿。没这条路时它会退回 `scan_roots`
+    （默认 `["/"]`），`clean --yes` 就等于「把整个网盘的空目录全删一遍」——
+    用户没打算清 `/备份/2023` 那种跟自己无关的空壳。
+    """
+    for run in idx.runs(limit=20):
+        run_id = run["id"]
+        if run_id.endswith("-undo"):
+            continue
+        ops = [o for o in idx.run_ops(run_id) if o["kind"] == "move"]
+        if not ops:
+            continue
+        out: list[str] = []
+        for o in ops:
+            up = o["src"].rsplit("/", 1)[0] or "/"
+            if up not in out:
+                out.append(up)
+        return out
+    return []
+
+
 def cmd_clean(args) -> int:
     """清空壳：整理完源目录里会剩下一堆空文件夹。
 
     只删**真的一件东西都不剩**的目录，而且优先删最深的——父目录要等子目录都没了
-    才算空。根目录本身（scan_roots 里那几个）永远不动。
+    才算空。根目录本身永远不动。
     """
     cfg = _load_cfg(args)
-    roots = args.root or cfg.scan_roots
+    if args.root:
+        roots = list(args.root)
+    else:
+        idx = Index(cfg.index_path)
+        try:
+            roots = _recent_apply_srcs(idx)
+        finally:
+            idx.close()
+        if not roots:
+            return die(
+                "clean 不知道该清哪儿：还没有一次成功的 apply 记录。\n"
+                "  先跑一遍 guiyun apply --yes，或者显式给目录：\n"
+                "  guiyun clean --root /未整理"
+            )
+        say(f"（没给 --root，按最近一次 apply 的源目录来：{', '.join(roots)}）")
+    if "/" in roots:
+        return die(
+            'clean 不接 "/" 当根——那会把整个网盘的空目录全清掉，包括跟整理无关的。\n'
+            "  只给它一个具体的源目录，比如 guiyun clean --root /未整理"
+        )
     backend = open_backend(cfg)
     bad = _ensure(backend)
     if bad is not None:
@@ -543,8 +585,11 @@ def cmd_clean(args) -> int:
     # 由深到浅：子目录都删掉之后，父目录可能也变空了
     live = dict(kids)
     doomed: list[str] = []
+    # 用户手写的 --root 是"看这里"，不是"清这里"，根自身永远留着；
+    # 而从台账推出来的源目录本来就是现场，空了就该一起清掉。
+    keep_roots = bool(args.root)
     for path in sorted(kids, key=lambda p: depth[p], reverse=True):
-        if path in roots or live.get(path, 0) != 0:
+        if (keep_roots and path in roots) or live.get(path, 0) != 0:
             continue
         doomed.append(path)
         up = parent.get(path)
@@ -691,7 +736,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_explain)
 
     sp = sub.add_parser("clean", help="清掉整理后剩下的空文件夹")
-    sp.add_argument("--root", action="append", help="只看这个目录，可重复；默认用配置里的 scan_roots")
+    sp.add_argument("--root", action="append", help="只看这个目录，可重复；默认用最近一次 apply 的源目录")
     sp.add_argument("--dry-run", action="store_true", help="只数个数，不动")
     sp.add_argument("--yes", action="store_true", help="确认真删")
     sp.set_defaults(func=cmd_clean)

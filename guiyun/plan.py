@@ -133,20 +133,31 @@ def _media(cfg: Config, name: str, size: int) -> bool:
     return size >= cfg.match_min_size
 
 
-def _uniq(dst: str, used: dict[str, int]) -> str:
-    """同一个目标路径被两条计划撞上时，第二条开始加 (2)(3)…"""
-    if dst not in used:
+def _uniq(dst: str, used: dict[str, int], *, is_dir: bool = False) -> str:
+    """同一个目标路径被两条计划撞上时，第二条开始加 (2)(3)…
+
+    `used` 里同时装着**云端已经有的路径**和本次计划占下的路径，所以
+    「目标已存在」这一档不靠调用方另外判——直接在这儿改名就行。
+    """
+    cur = used.get(dst, 0)
+    if cur == 0:
         used[dst] = 1
         return dst
-    used[dst] += 1
-    n = used[dst]
+
     parent, _, name = dst.rpartition("/")
-    if name and "." in name:
-        stem, ext = split_ext(name)
-        cand = f"{stem} ({n}).{ext}"
-    else:
-        cand = f"{name} ({n})"
-    new = f"{parent}/{cand}" if parent else f"/{cand}"
+    n = cur + 1
+    while True:
+        # 目录名里的点不是扩展名（「2024.05」不能被改成「2024 (2).05」）
+        if is_dir or "." not in name:
+            cand = f"{name} ({n})"
+        else:
+            stem, ext = split_ext(name)
+            cand = f"{stem} ({n}).{ext}"
+        new = f"{parent}/{cand}" if parent else f"/{cand}"
+        if used.get(new, 0) == 0:
+            break
+        n += 1
+    used[dst] = n
     used[new] = 1
     return new
 
@@ -241,7 +252,10 @@ def build(cfg: Config, idx: Index) -> Plan:
         ],
     )
 
-    used: dict[str, int] = {}
+    # `used` 先用云端已有的路径播种：不加这一步，on_conflict="rename" 就是空转——
+    # `_uniq` 只在「本次计划内部撞名」时才改名，撞上云端已有的同名目标会原样
+    # 返回，然后被后端以「目标已存在」拒掉，方案说能搬、执行逐条失败。
+    used: dict[str, int] = {p: 1 for p in existing}
     for it in items:
         verdict = verdicts[it.src]
         decision, when = verdict.decision, verdict.when
@@ -283,14 +297,18 @@ def build(cfg: Config, idx: Index) -> Plan:
             it.dst = it.src
             continue
 
-        if dst in existing and dst != it.src:
-            if cfg.on_conflict == "skip":
-                it.status = "skip"
-                it.why = f"目标已存在同名项：{dst}"
-                it.dst = dst
-                continue
+        if dst in existing and dst != it.src and cfg.on_conflict == "skip":
+            it.status = "skip"
+            it.why = f"目标已存在同名项：{dst}"
+            it.dst = dst
+            continue
 
-        it.dst = _uniq(dst, used)
+        renamed = _uniq(dst, used, is_dir=it.is_dir)
+        it.dst = renamed
+        if renamed != dst:
+            # 撞名了（云端已有，或本次计划里前一条先占了）。改名这件事得说出来，
+            # 否则用户看到一个带 (2) 的目录名会以为是自己起的。
+            it.why = f"目标已存在同名项，改名落「{renamed.rsplit('/', 1)[-1]}」"
 
     # 根目录自身、待定目录本身不参与
     items = [i for i in items if i.src != lib]

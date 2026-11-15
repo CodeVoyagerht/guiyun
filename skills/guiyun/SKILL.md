@@ -2,7 +2,7 @@
 name: guiyun
 description: 把网盘里的摄影/航拍素材按「区域 or 活动 or 抖音 → 年 → 备份周期 → 拍摄类型」归位，只搬不删、全程记账、一条命令能全部撤回。Use when 用户要整理网盘或云端素材、说百度网盘里一堆照片视频太乱、要按地点/活动或拍摄时间归档、问「去年拍的某个项目在哪个文件夹」、要先看整理方案再决定动不动手、或者要撤掉一次整理；do not use for 本地硬盘素材库归档（那是 guicang）、剪辑成片、或需要逐张看图才能定的判断。
 license: MIT
-compatibility: 需要 Python 3.11+，零第三方依赖（只用标准库）。百度网盘走 BaiduPCS-Go 单文件 CLI（仓库 .tools/bpc/ 里带了一份，也可在配置里指任意路径）；也能对接任意本地同步目录（backend.kind = "local"），不需要登录。**分类规则借自「归藏 guicang」**（同一套 places.toml / activities.toml，需先 `pip install -e <归藏仓库>`）。
+compatibility: 需要 Python 3.11+。本仓库代码只用标准库，但**判定规则来自姊妹项目「归藏 guicang」，必须先 `pip install -e <归藏仓库>`**（两边共用一份 places.toml / activities.toml，不装的话 plan/apply 会直接报错）。百度网盘走 BaiduPCS-Go 单文件 CLI（仓库 .tools/bpc/ 里带了一份，也可在配置里指任意路径）；也能对接任意本地同步目录（backend.kind = "local"），不需要登录。
 metadata:
   author: 天天（北屿升）
   version: "0.2.2"

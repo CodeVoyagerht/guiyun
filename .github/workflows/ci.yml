@@ -80,13 +80,16 @@ jobs:
           class Loader(yaml.SafeLoader):
               pass
 
+          # DSH 预设里用 `!!js` 写表达式；解析器不认识这个标签，先注册成"原样保留"。
+          Loader.add_multi_constructor("tag:yaml.org,2002:js", lambda loader, suffix, node: None)
           Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
 
           for path in sorted(glob.glob("preset/*.yml")):
               with open(path, encoding="utf-8") as fh:
                   data = yaml.load(fh, Loader=Loader)
-              assert isinstance(data, dict), f"{path} 不是映射"
-              print(f"✓ {path}")
+              # agent.cordis.yml 顶层是 section 列表，preset.yml 是映射——只要求非空。
+              assert data, f"{path} 解析出来是空的"
+              print(f"✓ {path}（{type(data).__name__}，{len(data)} 项）")
           PY
 
       - name: 文档里的命令真的存在

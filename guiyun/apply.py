@@ -23,16 +23,21 @@ class Outcome:
     moved: int = 0
     failed: int = 0
     skipped: int = 0
+    gone: int = 0
     aborted: str | None = None
     errors: list[tuple[str, str]] = field(default_factory=list)
     elapsed: float = 0.0
 
     @property
     def ok(self) -> bool:
+        # gone 不算失败：源本来就不在了（上一轮搬过 / 用户自己挪过），
+        # 当成失败会让整批 exit 1，逼着人以后一律忽略失败提示。
         return self.aborted is None and self.failed == 0
 
     def line(self) -> str:
         bits = [f"搬了 {self.moved} 条"]
+        if self.gone:
+            bits.append(f"已不在原处 {self.gone} 条")
         if self.skipped:
             bits.append(f"跳过 {self.skipped}")
         if self.failed:
@@ -46,6 +51,19 @@ class Outcome:
 
 def _now_id() -> str:
     return time.strftime("%Y%m%d-%H%M%S", time.localtime())
+
+
+# 「这东西不在了」的后端话术。local 说「源不存在」，baidu 说「路径不存在」——
+# 后者的完整文案还带着「或者路径里有 * ? [ ] 这类字符被当成了通配符」，
+# 那种情况是名字本身有问题，不能当"不在了"放过去。
+_GONE_HINTS = ("源不存在", "路径不存在")
+
+
+def _is_gone(err: str) -> bool:
+    text = err or ""
+    if "通配符" in text:
+        return False
+    return any(h in text for h in _GONE_HINTS)
 
 
 def apply(
@@ -85,6 +103,10 @@ def apply(
                 out.aborted = f"mkdir {item.target_dir} 触发风控：{exc}"
                 idx.log_op(run_id, seq, "mkdir", item.target_dir, "", False, str(exc))
                 break
+            except AuthError as exc:
+                out.aborted = f"登录态掉了：{exc}"
+                idx.log_op(run_id, seq, "mkdir", item.target_dir, "", False, out.aborted)
+                break
             except BackendError as exc:
                 out.failed += 1
                 out.errors.append((item.src, f"建目录失败：{exc}"))
@@ -101,17 +123,25 @@ def apply(
                     err = f"风控：{exc}"
                     out.aborted = f"{item.src} 触发风控，整批停在这里。{exc}"
                     break
-                except AuthError:
-                    raise
+                except AuthError as exc:
+                    # 先把这条记进台账再停整批：直接 raise 出去的话，
+                    # 已经搬不动了的这一条不会出现在任何记录里。
+                    err = f"登录态掉了：{exc}"
+                    out.aborted = err
+                    break
                 except BackendError as exc:
                     err = str(exc)
-                    if attempt < cfg.apply_retry:
+                    if attempt < cfg.apply_retry and not _is_gone(err):
                         time.sleep(1.0 + attempt)
 
             if out.aborted:
-                idx.log_op(run_id, seq, "move", item.src, item.dst, False, err)
+                idx.log_op(run_id, seq, "move", item.src, item.dst, False, err or out.aborted)
                 break
-            if err:
+            if err and _is_gone(err):
+                # 源已经不在了：上一轮跑过、或者用户自己搬过，不是失败。
+                out.gone += 1
+                idx.log_op(run_id, seq, "move", item.src, item.dst, False, f"已不在原处：{err}")
+            elif err:
                 out.failed += 1
                 out.errors.append((item.src, err))
                 idx.log_op(run_id, seq, "move", item.src, item.dst, False, err)
@@ -132,6 +162,7 @@ def apply(
                     "moved": out.moved,
                     "failed": out.failed,
                     "skipped": out.skipped,
+                    "gone": out.gone,
                     "aborted": out.aborted or "",
                     "seconds": round(out.elapsed, 1),
                 },
@@ -172,10 +203,20 @@ def undo(cfg: Config, idx: Index, backend: Backend, run_id: str, dry_run: bool =
                 out.aborted = f"回滚触发风控：{exc}"
                 idx.log_op(new_id, seq, "move", dst, src, False, str(exc))
                 break
+            except AuthError as exc:
+                out.aborted = f"登录态掉了：{exc}"
+                idx.log_op(new_id, seq, "move", dst, src, False, out.aborted)
+                break
             except BackendError as exc:
-                out.failed += 1
-                out.errors.append((dst, str(exc)))
-                idx.log_op(new_id, seq, "move", dst, src, False, str(exc))
+                if _is_gone(str(exc)):
+                    # 要搬回去的东西已经不在原位了（用户自己又挪过？）。
+                    # 数成失败没意义——undo 的目标是"能搬回去的都搬回去"。
+                    out.gone += 1
+                    idx.log_op(new_id, seq, "move", dst, src, False, f"已不在原处：{exc}")
+                else:
+                    out.failed += 1
+                    out.errors.append((dst, str(exc)))
+                    idx.log_op(new_id, seq, "move", dst, src, False, str(exc))
             time.sleep(cfg.apply_throttle)
     finally:
         out.elapsed = time.time() - t0
