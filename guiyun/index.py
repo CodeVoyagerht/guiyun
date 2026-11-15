@@ -207,16 +207,25 @@ class Index:
 
 
 def walk(backend, roots: list[str], max_depth: int, max_files: int,
-         skip_prefixes: list[str], progress=None) -> tuple[list[Entry], bool]:
+         skip_prefixes: list[str], progress=None,
+         report: dict | None = None) -> tuple[list[Entry], bool]:
     """广度优先遍历，产出 Entry 列表。
 
     返回 (entries, truncated)。truncated=True 表示撞上了 max_files 保险丝——
     这不是错误，是**故意**停下来，避免一次 scan 把网盘拖到风控。
+
+    `report` 是可选的记账本，会填两个键：
+      - `errors`: [(path, 原因)]，读不了的目录。**这些目录里面的东西这次没进来**，
+        以前是静默跳过的，用户会以为整棵树都索引好了。
+      - `deep`: [path]，撞上 max_depth 的目录（它们本身进来了，里面的没进来）。
     """
     entries: list[Entry] = []
     seen: set[str] = set()
     queue: list[tuple[str, int]] = [(r, 0) for r in roots]
     truncated = False
+    if report is not None:
+        report.setdefault("errors", [])
+        report.setdefault("deep", [])
 
     def skipped(path: str) -> bool:
         for pref in skip_prefixes:
@@ -238,6 +247,8 @@ def walk(backend, roots: list[str], max_depth: int, max_files: int,
         try:
             children = backend.list_dir(path)
         except Exception as exc:  # 单个目录读不了不该让整次扫描崩掉
+            if report is not None:
+                report["errors"].append((path, str(exc)))
             if progress:
                 progress(f"!{path}: {exc}", len(entries))
             continue
@@ -246,6 +257,9 @@ def walk(backend, roots: list[str], max_depth: int, max_files: int,
             if len(entries) >= max_files:
                 truncated = True
                 return entries, truncated
-            if child.is_dir and depth + 1 < max_depth and not skipped(child.path):
-                queue.append((child.path, depth + 1))
+            if child.is_dir and not skipped(child.path):
+                if depth + 1 < max_depth:
+                    queue.append((child.path, depth + 1))
+                elif report is not None:
+                    report["deep"].append(child.path)
     return entries, truncated

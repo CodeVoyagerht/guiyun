@@ -93,6 +93,7 @@ def cmd_scan(args) -> int:
             print(f"\r  扫了 {done} 项 … {path[-60:]:<60}", end="", flush=True)
 
     say(f"开始扫：{', '.join(roots)}（跳过 {cfg.library_root}）")
+    report: dict = {}
     try:
         entries, truncated = walk(
             backend,
@@ -101,6 +102,7 @@ def cmd_scan(args) -> int:
             cfg.scan_max_files,
             [cfg.library_root],
             progress,
+            report,
         )
     finally:
         backend.close()
@@ -111,6 +113,10 @@ def cmd_scan(args) -> int:
     idx.set_meta("truncated", 1 if truncated else 0)
     idx.set_meta("roots", json.dumps(roots, ensure_ascii=False))
     idx.set_meta("stale", 0)
+    errors = report.get("errors") or []
+    deep = report.get("deep") or []
+    idx.set_meta("read_errors", len(errors))
+    idx.set_meta("deep_skipped", len(deep))
 
     dirs = sum(1 for e in entries if e.is_dir)
     files = n - dirs
@@ -119,6 +125,20 @@ def cmd_scan(args) -> int:
     if truncated:
         say(f"! 撞上 {cfg.scan_max_files} 条保险丝，只扫了一部分。")
         say("  不是错，是故意停的（避免一次扫太多被风控）。可以把 scan_roots 收窄到具体几个目录再扫。")
+    if deep:
+        say(f"! 有 {len(deep)} 个目录在第 {cfg.scan_max_depth} 层就到头了，里面的东西这次没索引：")
+        for p in deep[:3]:
+            say(f"    {p}")
+        if len(deep) > 3:
+            say(f"    …还有 {len(deep) - 3} 个")
+        say("  要扫进去就把 [scan] max_depth 调大（每多一层就多一轮请求，别直接拉到 30）。")
+    if errors:
+        say(f"! 有 {len(errors)} 个目录读不了，里面的东西这次没索引：")
+        for p, why in errors[:3]:
+            say(f"    {p}  ← {why}")
+        if len(errors) > 3:
+            say(f"    …还有 {len(errors) - 3} 个")
+        say("  常见原因：网盘那头刚被删/改了名、风控挡了一下、路径太长。可以再扫一次。")
     return EXIT_OK
 
 
@@ -269,6 +289,12 @@ def cmd_status(args) -> int:
     say(f"索引：{n} 项，扫于 {when}，共 {report_mod.fmt_size(idx.total_size())}")
     if idx.get_meta("truncated"):
         say("! 上次扫描被保险丝截断了，索引不完整")
+    deep_n = int(idx.get_meta("deep_skipped") or 0)
+    err_n = int(idx.get_meta("read_errors") or 0)
+    if deep_n:
+        say(f"! 上次扫描有 {deep_n} 个目录超出 max_depth，里面的东西没索引（重扫前把 [scan] max_depth 调大）")
+    if err_n:
+        say(f"! 上次扫描有 {err_n} 个目录没读成，里面的东西没索引（重扫一次通常就好了）")
     if idx.get_meta("stale"):
         say("! 索引已过期（上次整理之后没重扫），下次整理前先 guiyun scan")
 

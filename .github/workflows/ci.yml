@@ -45,6 +45,10 @@ jobs:
       - name: 规则小测
         run: python tests/rules.py
 
+      # walk 的记账本：读不了的目录、超出 max_depth 的目录必须报出来，不能静默。
+      - name: 扫描记账
+        run: python tests/walk.py
+
       # e2e 直接调 API：造夹具 → scan → plan → review → apply → clean → undo。
       - name: 端到端
         run: python tests/e2e.py
