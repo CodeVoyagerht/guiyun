@@ -5,7 +5,7 @@ license: MIT
 compatibility: 需要 Python 3.11+，零第三方依赖（只用标准库）。百度网盘走 BaiduPCS-Go 单文件 CLI（仓库 .tools/bpc/ 里带了一份，也可在配置里指任意路径）；也能对接任意本地同步目录（backend.kind = "local"），不需要登录。**分类规则借自「归藏 guicang」**（同一套 places.toml / activities.toml，需先 `pip install -e <归藏仓库>`）。
 metadata:
   author: 天天（北屿升）
-  version: "0.2.1"
+  version: "0.2.2"
   repo: https://github.com/CodeVoyagerht/guiyun
 ---
 

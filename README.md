@@ -1,5 +1,7 @@
 # 归云 guiyun
 
+[![CI](https://github.com/CodeVoyagerht/guiyun/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeVoyagerht/guiyun/actions/workflows/ci.yml)
+
 **云端没有硬链接，所以每一次移动都要留退路。**
 
 把网盘里的摄影/航拍素材按 `区域 / 活动 / 抖音 → 年 → 备份周期 → 拍摄类型 → [机型]` 归位。

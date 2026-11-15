@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guiyun"
-version = "0.2.1"
-description = "把网盘里的摄影/航拍素材按 项目/日期/机型 归位：只搬不删、全程记账、一条命令全部撤回"
+version = "0.2.2"
+description = "把网盘里的摄影/航拍素材按 区域 or 活动 or 抖音 → 年 → 备份周期 → 拍摄类型 归位：只搬不删、全程记账、一条命令全部撤回"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

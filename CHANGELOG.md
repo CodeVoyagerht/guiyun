@@ -1,5 +1,15 @@
 # 变更记录
 
+## 0.2.2
+
+只有工程面，判定与落位一个字没改：
+
+- 加 GitHub Actions（`.github/workflows/ci.yml`）：`windows-latest` + `ubuntu-latest` × Python 3.11/3.13，
+  先把归藏从 git 装上（规则引擎真源），再跑 `tests/e2e.py` 与 `tests/smoke_coldstart.py`；
+  另有一个 lint job 验技能安装脚本的 dry-run、预设 YAML 能解析、README 里的子命令都真实存在。
+- `tests/smoke_coldstart.py` 的临时目录改用 `tempfile.gettempdir()`（原来只认 Windows 的 `TEMP`，
+  在 Linux 上会把临时库建进仓库目录）。
+
 ## 0.2.1
 
 拍摄类型多了一条云端能用的证据：**文件名前缀**。

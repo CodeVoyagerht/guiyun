@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.11", "3.13"]
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # 分类规则的唯一真源在归藏；归云借它的 classify / taxonomy / manual。
+      - name: 装归藏（规则引擎）
+        run: python -m pip install "git+https://github.com/CodeVoyagerht/guicang.git@main"
+
+      - name: 装归云
+        run: python -m pip install -e .
+
+      - name: 语法自检
+        run: python -m compileall -q guiyun tests
+
+      - name: 版本与帮助
+        run: |
+          python -m guiyun --version
+          python -m guiyun --help
+
+      # e2e 直接调 API：造夹具 → scan → plan → review → apply → clean → undo。
+      - name: 端到端
+        run: python tests/e2e.py
+
+      # 冷启动只走命令行：验证模板能改、配置能读、命令能跑、结果对。
+      - name: 冷启动冒烟
+        run: python tests/smoke_coldstart.py
+
+  lint:
+    name: 技能与预设
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 装依赖（规则引擎 + 本包 + YAML）
+        run: |
+          python -m pip install "git+https://github.com/CodeVoyagerht/guicang.git@main"
+          python -m pip install -e .
+          python -m pip install pyyaml
+
+      - name: 技能安装脚本能跑（dry-run 不写盘）
+        run: |
+          python skills/guiyun/scripts/install.py --target dsh --dry-run
+          python skills/guiyun/scripts/install.py --target claude --dry-run
+
+      - name: 预设 YAML 能解析（`!!js` 是 DSH 的自定义标签）
+        run: |
+          python - <<'PY'
+          import glob
+          import yaml
+
+          class Loader(yaml.SafeLoader):
+              pass
+
+          Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+
+          for path in sorted(glob.glob("preset/*.yml")):
+              with open(path, encoding="utf-8") as fh:
+                  data = yaml.load(fh, Loader=Loader)
+              assert isinstance(data, dict), f"{path} 不是映射"
+              print(f"✓ {path}")
+          PY
+
+      - name: 文档里的命令真的存在
+        run: |
+          python - <<'PY'
+          import re
+          import subprocess
+
+          text = open("README.md", encoding="utf-8").read()
+          subs = set(re.findall(r"^\s*guiyun ([a-z]+)", text, re.M))
+          help_text = subprocess.run(
+              ["python", "-m", "guiyun", "--help"],
+              capture_output=True, text=True, encoding="utf-8",
+          ).stdout
+          missing = [s for s in subs if s not in help_text]
+          assert not missing, f"README 里提到但命令里没有：{missing}"
+          print(f"✓ README 提到的 {len(subs)} 个子命令都在")
+          PY

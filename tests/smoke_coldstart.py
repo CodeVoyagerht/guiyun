@@ -14,10 +14,12 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TMP = os.path.join(os.environ.get("TEMP", "."), "guiyun-coldstart")
+# Windows 有 TEMP，类 Unix 只有 TMPDIR；两个都没有时 tempfile 会退回 /tmp。
+TMP = os.path.join(tempfile.gettempdir(), "guiyun-coldstart")
 
 
 def run(args, home, *, expect=0):

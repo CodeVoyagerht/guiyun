@@ -5,5 +5,5 @@
 清单也只认归藏那份 places.toml / activities.toml —— 一棵树，两个工具。
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __all__ = ["__version__"]
