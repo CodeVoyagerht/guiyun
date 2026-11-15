@@ -254,6 +254,31 @@ def main() -> int:
     except ValueError:
         check(True, "看不懂的日期直接报错，不瞎猜")
 
+    print("⑩ 待定桶的名字能改（改了必须真的换目录，不能只换报告标题）")
+    before_cfg = load(HOME)
+    before = {i.src: i.dst for i in plan_mod.build(before_cfg, Index(before_cfg.index_path)).items}
+    toml = (HOME / "guiyun.toml").read_text(encoding="utf-8")
+    (HOME / "guiyun.toml").write_text(
+        toml.replace('pending_dir = "待定"', 'pending_dir = "未定"'), encoding="utf-8"
+    )
+    cfg2 = load(HOME)
+    check(cfg2.pending_dir == "未定", "配置读到了新名字")
+    after = {i.src: i.dst for i in plan_mod.build(cfg2, Index(cfg2.index_path)).items}
+
+    in_bucket = [src for src, dst in before.items() if dst.startswith("/摄影库/待定/")]
+    check(bool(in_bucket), "默认配置下确实有待定桶里的东西")
+    for src in in_bucket:
+        want = before[src].replace("/摄影库/待定/", "/摄影库/未定/", 1)
+        check(after[src] == want, f"{src.rsplit('/', 1)[-1][:24]} 只换了桶名：{after[src]}")
+    check(
+        all(not dst.startswith("/摄影库/待定/") for dst in after.values()),
+        "旧名字下不再有东西",
+    )
+    # 抖音枝里的「待定」是拍摄类型那一层，不是根上的桶，不能跟着改
+    douyin = [s for s, d in before.items() if d.startswith("/摄影库/抖音/") and "/待定/" in d]
+    check(bool(douyin) and all(after[s] == before[s] for s in douyin), "抖音枝不跟着改")
+    (HOME / "guiyun.toml").write_text(toml, encoding="utf-8")
+
     print()
     if FAILS:
         print(f"✗ {len(FAILS)} 项没过：")

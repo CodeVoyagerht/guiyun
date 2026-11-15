@@ -86,12 +86,20 @@
 
 ```bash
 guiyun login            # 交互式，BDUSS 用 getpass 输入，不回显
-guiyun login --bduss    # 按提示走 BaiduPCS-Go 自己的交互
+GUIYUN_BDUSS=... guiyun login   # 脚本里用环境变量，别把 BDUSS 写在命令行上
 ```
 
 登录态存在 BaiduPCS-Go 自己的配置目录（或用 `[backend.baidu] config_dir` 指定）。
+`config_dir` 必须写**绝对路径**：BaiduPCS-Go 的 `GetConfigDir()` 会把相对路径拼到
+**它自己 exe 所在目录**，不是当前目录（源码 `internal/pcsconfig/pcsconfig.go`），
+写成相对路径会在 exe 旁边静默建一个目录，人找不到。归云会提前报错拦住。
+
+`--bduss=...` 仍然支持，但那串会留在 shell 历史和进程列表里，等同把密码写在命令行上；
+交互输入或环境变量都好过它。
+
 `guiyun status` / 任何子命令开头的 `_ensure()` 都会跑一次 `who` 检查连通，
-不通就停下来说「没登录」，**不会带着坏登录态继续跑**。
+不通就停下来说「没登录」，**不会带着坏登录态继续跑**。注意 `who` 没登录时也退出 0，
+所以判断依据是输出里的 `uid:`（0 = 没登录）和 `用户名:`，不是退出码。
 
 **BDUSS 等同于登录态。** 不要打进日志、不要写进报告、不要在对话里复述。
 用户贴给你的时候回一句"已收到，不会再显示"，然后闭嘴。

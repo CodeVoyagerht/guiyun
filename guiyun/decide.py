@@ -403,3 +403,12 @@ def build_layout(gcfg, triples):
 
 def short_branch(decision) -> str:
     return _gc()["taxonomy"].short_branch(decision)
+
+
+def pending_branch() -> str:
+    """归藏在树根上给「判不准」的那个桶叫什么（`待定`）。
+
+    归云允许在配置里把它换个名字（`[library] pending_dir`），换名的时候得知道
+    要从哪个名字换过来——名字是归藏的常量，不是我们写死的字面量。
+    """
+    return str(getattr(_gc()["taxonomy"], "PENDING_BRANCH", "待定"))

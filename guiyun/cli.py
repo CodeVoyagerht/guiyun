@@ -330,6 +330,15 @@ def cmd_login(args) -> int:
         pass
 
     bduss = args.bduss
+    if bduss:
+        # --bduss 会被 shell 记进历史、也会出现在 ps 输出里，等同一个密码
+        # 被写在命令行上。不拦（脚本要用），但得说一声。
+        say("! 用 --bduss 传参：这串会留在 shell 历史和进程列表里。")
+        say("  更稳的两种：环境变量 GUIYUN_BDUSS=...，或者直接交互输入。")
+    if not bduss:
+        bduss = (os.environ.get("GUIYUN_BDUSS") or "").strip()
+        if bduss:
+            say("✓ 用环境变量 GUIYUN_BDUSS 里的 BDUSS")
     if not bduss:
         import getpass
 
@@ -339,7 +348,7 @@ def cmd_login(args) -> int:
         except (EOFError, KeyboardInterrupt):
             # 非交互场景（脚本、管道里跑）读不到输入，别甩 traceback 给人看
             return die(
-                "没读到输入。要么加 --bduss=...，要么先在终端里手动跑一次\n"
+                "没读到输入。要么设环境变量 GUIYUN_BDUSS=...，要么先在终端里手动跑一次\n"
                 f"  \"{cfg.backend_cli}\" login -bduss=...\n"
                 "让它自己把登录态存下来，之后 guiyun 就不用再问。"
             )
@@ -766,7 +775,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_report)
 
     sp = sub.add_parser("login", help="百度网盘登录")
-    sp.add_argument("--bduss", help="直接给 BDUSS（不给就交互输入）")
+    sp.add_argument(
+        "--bduss",
+        help="直接给 BDUSS。会留在 shell 历史里，脚本里更推荐环境变量 GUIYUN_BDUSS；不给就交互输入",
+    )
     sp.set_defaults(func=cmd_login)
 
     sp = sub.add_parser("config", help="打印当前配置原文")

@@ -117,24 +117,33 @@ is_auto = (归藏判定为 auto) and (日期来源不是 mtime)
 
 **拍摄类型不够 0.75 就进待定**（`抖音/…/待定/` 也是这个道理）——`--shot 航拍` 钉一次就够。
 
-## 六、机型
+# 六、机型
 
 云端**读不到 EXIF**。所以机型只认名字里明写的型号 —— 目录名、文件名、以及整堆搬时
 **那堆里最多十二个文件名**（目录名常常不含机型，但里面的 `DJI_0001.JPG` 含；
 漏了这条整类航拍素材都会变"没认出来"）。
 
+**取证顺序是「离文件越近越可信」**：文件名 → 堆里的文件名 → 由近到远的目录。
+同一段文字里命中多条规则时，取最先出现的那个（位置相同取更长的，`Air 2S` 不会被
+`Air 2` 抢走）。以前是把整条路径拼成一个大字符串、按规则表顺序取第一个命中，
+结果 `Mavic 3/2024/某活动-Air 2S` 这种路径永远只认到 Mavic 3。
+
 | 命中 | 置信度 | 落成的名字 |
 |---|---|---|
-| 具体型号：Mavic 3 / Mavic 2 / Mini / Air / Phantom / Inspire / Avata / Matrice | **0.80** | `DJI Mavic 3`、`DJI Mini 4`… |
-| Sony：`ILCE-7RM3`、`ILCE-6400`、`A7R…`、`A7M…` | **0.80** | `Sony ILCE`、`Sony A7` |
+| 具体型号：Mavic 3 / Mavic 2 / Mini 2·3·4 / Air 2·2S·3 / Phantom / Inspire / Avata / Matrice | **0.80** | `DJI Mavic 3 Pro`、`DJI Mini 4`、`DJI Air 2S`… |
+| Sony：`ILCE-7RM3`、`ILCE-7M3`、`ILCE-6400`、`A7R…`、`A7M…` | **0.80** | `Sony ILCE 7RM3`、`Sony A7` |
 | Canon：`EOS R5`、`EOS R6`、`5D`、`6D`、`90D`、`850D` | **0.80** | `Canon EOS`、`Canon 5D` |
 | Fuji：`X-T4`、`X-H2` | **0.80** | `Fuji X-T`、`Fuji X-H` |
-| 运动相机/口袋机：Osmo、Pocket、GoPro、Insta360 | **0.80** | 对应名 |
+| 运动相机/口袋机：Osmo、Pocket、GoPro、Insta360（`Insta360` / `ONE X2·X3`） | **0.80** | 对应名 |
 | 只有厂牌：DJI、Canon、Sony、Nikon、Fuji、Leica | **0.62** | 厂牌 |
 | 文件名以 `DJI_` 开头但型号不明 | **0.58** | `DJI` |
 | 都没有 | — | 不分机型层 |
 
+型号名里的后缀按机型习惯拼：单字母直接黏（Air 2 + S = `DJI Air 2S`），单词用空格
+（Mavic 3 + Pro = `DJI Mavic 3 Pro`）。
+
 匹配不区分大小写。`_CAM_RULES` 目前 17 条正则，加新机器就往那张表里加一行（`(正则, 名字)` 元组）。
+改完跑 `python tests/rules.py`——那张表用小测钉着，别只靠肉眼。
 
 **机型不影响能不能自动搬。** 认不出就平铺在拍摄类型下面；认出来了也不一定分层 —— 见下。
 

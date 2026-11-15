@@ -23,7 +23,14 @@ from pathlib import Path
 from . import manual as manual_mod
 from .backends.base import join, split_ext
 from .config import Config
-from .decide import build_layout, decide, refresh_pending_why, target_for, taxonomy_config
+from .decide import (
+    build_layout,
+    decide,
+    pending_branch,
+    refresh_pending_why,
+    target_for,
+    taxonomy_config,
+)
 from .index import Index
 
 
@@ -166,6 +173,7 @@ def build(cfg: Config, idx: Index) -> Plan:
     lib = (cfg.library_root or "/摄影库").rstrip("/") or "/"
     existing = idx.all_paths()
     gcfg = taxonomy_config(cfg)
+    pending_name = pending_branch()
 
     # ── 先把"整目录搬"的候选找出来：没有子目录、且里面有媒体文件的文件夹 ──
     leaf: dict[str, dict] = {}
@@ -284,6 +292,10 @@ def build(cfg: Config, idx: Index) -> Plan:
             camera=it.camera or "",
             year_only=year_only,
         )
+        # 待定桶的名字是归藏的常量（`待定`）。配置里想叫别的就换掉第一层——
+        # 不换的话 `[library] pending_dir` 只是个显示用的摆设，改了也不生效。
+        if target.parts and target.parts[0] == pending_name and cfg.pending_dir != pending_name:
+            target.parts[0] = cfg.pending_dir
         target_dir = join(lib, *target.parts)
         it.target_dir = target_dir
         # 展示用：只看时间那几层。地点/活动/拍摄类型/机型各是一个字段，

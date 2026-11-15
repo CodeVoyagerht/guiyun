@@ -55,13 +55,14 @@ def find_year(text: str) -> str | None:
 _CAM_RULES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"mavic\s*3\s*(pro|classic)?", re.I), "DJI Mavic 3"),
     (re.compile(r"mavic\s*2\s*(pro|zoom)?", re.I), "DJI Mavic 2"),
-    (re.compile(r"mini\s*([34])\s*(pro)?", re.I), "DJI Mini"),
-    (re.compile(r"\bair\s*([23])\s*s?", re.I), "DJI Air"),
+    (re.compile(r"mini\s*([234])\s*(pro)?", re.I), "DJI Mini"),
+    (re.compile(r"\bair\s*([23])\s*(s|pro)?", re.I), "DJI Air"),
     (re.compile(r"phantom\s*(\d)", re.I), "DJI Phantom"),
     (re.compile(r"inspire\s*(\d)", re.I), "DJI Inspire"),
     (re.compile(r"avata\s*(\d)?", re.I), "DJI Avata"),
     (re.compile(r"matrice\s*(\d+)", re.I), "DJI Matrice"),
-    (re.compile(r"ilce[-_ ]?(\d{4}|[a-z]\d{3,4})", re.I), "Sony ILCE"),
+    # ILCE-7RM3 / ILCE-7M3 / ILCE-6400 都要认：只写 \d{4} 会把 7RM3 漏成「只认出 Sony」
+    (re.compile(r"ilce[-_ ]?(\d{4,5}|\d{1,2}[a-z]{1,3}\d{0,2}|\d{1,2})", re.I), "Sony ILCE"),
     (re.compile(r"\ba7\s*(rv|iv|iii|ii|s|r|c)\b", re.I), "Sony A7"),
     (re.compile(r"eos\s*(r5|r6|r7|r8|r10|r50|r100|r3|5d|6d|1dx|90d|850d)", re.I), "Canon EOS"),
     (re.compile(r"\bx[-_ ]?t\s*(\d)\b", re.I), "Fujifilm X-T"),
@@ -69,7 +70,8 @@ _CAM_RULES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bosmo\s*(pocket|action)?", re.I), "DJI Osmo"),
     (re.compile(r"\bpocket\s*([23])\b", re.I), "DJI Pocket"),
     (re.compile(r"\bgo\s*pro\b|gopro", re.I), "GoPro"),
-    (re.compile(r"\binsta\s*360\b|x[23]\b", re.I), "Insta360"),
+    # 只认 Insta360 自己的写法；原来那条 `x[23]\b` 会把任何「X3」都当成 Insta360
+    (re.compile(r"insta\s*360|one\s*x\s*[23]\b", re.I), "Insta360"),
 ]
 
 _BRANDS = [
@@ -82,27 +84,66 @@ _BRANDS = [
 ]
 
 
+def _cam_model(label: str, bits: list[str]) -> str:
+    """把规则名和捕获到的段拼成型号。
+
+    单字母后缀直接黏上去（Air 2 + S = Air 2S），单词后缀用空格（Mavic 3 + Pro）。
+    统一用空格会得到「DJI Air 2 S」，那不是一个型号名。
+    """
+    core = ""
+    for b in bits:
+        if not b:
+            continue
+        if len(b) <= 2 and b.isalpha():
+            core += b
+        else:
+            core += (" " if core else "") + b
+    return f"{label} {core}".strip() if core else label
+
+
+def _cam_in(text: str) -> tuple[str, str] | None:
+    """在一段文字里找机型：同一段里取**最先出现**的那个，位置相同取更长的。
+
+    返回 (型号, 命中的原文) 或 None。
+    """
+    best_key: tuple[int, int] | None = None
+    best: tuple[str, str] | None = None
+    for rx, label in _CAM_RULES:
+        for m in rx.finditer(text):
+            model = _cam_model(label, [g for g in m.groups() if g])
+            key = (m.start(), -len(m.group(0)))
+            if best_key is None or key < best_key:
+                best_key, best = key, (model, m.group(0))
+    return best
+
+
 def find_camera(segments: list[str], filename: str, hint_names: tuple | list = ()) -> tuple[str | None, float, str]:
     """从路径段和文件名里认机型。认不出就返回 None——不猜。
 
     hint_names：整目录搬时目录里那几个文件名。目录名常常不含机型，但里面的
     DJI_0001.JPG 含，漏了它整类航拍素材都会被当成「型号未知」。
+
+    取证顺序是「离文件越近越可信」：文件名 → 堆里的文件名 → 由近到远的目录。
+    以前是拿整条路径拼成一个大字符串、按规则表顺序返回第一个命中——那样
+    `Mavic 3 / 2024 / 某活动-Air 2S` 这种路径永远只认到 Mavic 3，明明
+    文件名写着 Air 2S 也没用。
     """
-    hints = [h for h in hint_names if h]
-    hay = " ".join([*segments, filename, *hints])
-    for rx, label in _CAM_RULES:
-        m = rx.search(hay)
-        if m:
-            model = label
-            bits = [g for g in m.groups() if g]
-            if bits:
-                model = f"{label} {' '.join(b for b in bits if b)}".strip()
-            return model, 0.80, f"名字里出现「{m.group(0)}」"
+    for text in [filename, *hint_names]:
+        if not text:
+            continue
+        hit = _cam_in(text)
+        if hit:
+            return hit[0], 0.80, f"文件名里出现「{hit[1]}」"
+    for seg in reversed([s for s in segments if s]):
+        hit = _cam_in(seg)
+        if hit:
+            return hit[0], 0.80, f"目录名里出现「{hit[1]}」"
+    hay = " ".join([*segments, filename, *[h for h in hint_names if h]])
     for rx, brand in _BRANDS:
         m = rx.search(hay)
         if m:
             return brand, 0.62, f"只认出厂牌「{m.group(0)}」，无型号"
-    for nm in [filename, *hints]:
+    for nm in [filename, *[h for h in hint_names if h]]:
         if re.match(r"(?i)^dji[_\-]", nm or ""):
             return "DJI", 0.58, "DJI_ 前缀说明是无人机素材，型号未知"
     return None, 0.0, ""

@@ -104,6 +104,14 @@ class BaiduBackend(Backend):
             )
         self.cli = cli
         self.timeout = timeout
+        if config_dir and not os.path.isabs(config_dir):
+            # BaiduPCS-Go 的 GetConfigDir() 对相对路径是拿「它自己 exe 所在目录」
+            # 去拼的，不是当前工作目录——写个 `./pcs` 会静默在 exe 旁边建目录，
+            # 用户完全找不到。这种事早报比晚查好。
+            raise BackendError(
+                f"[backend.baidu] config_dir 要写绝对路径，现在是 {config_dir!r}。\n"
+                "BaiduPCS-Go 会把相对路径拼到它自己 exe 所在目录，不是你以为的当前目录。"
+            )
         self.config_dir = config_dir
         # 目录列表缓存。键是目录路径，值是 {子项名: Entry}。
         # 每次 mkdir/move/copy/delete 成功都会增量更新它，所以它不会明显过期；
@@ -114,6 +122,9 @@ class BaiduBackend(Backend):
     # ── 进程调用 ──────────────────────────────────────────────────────────
     def _run(self, args: list[str]) -> str:
         env = dict(os.environ)
+        # v4.0.2 的 pcsverbose 只在值等于 "1" 时开调试（IsVerbose = Getenv(...) == "1"）。
+        # 这里写死 "0" 是为了压掉用户全局导出的 VERBOSE=1——调试输出会混进 ls 的
+        # 表格里，解析立刻错位。
         env["BAIDUPCS_GO_VERBOSE"] = "0"
         if self.config_dir:
             env["BAIDUPCS_GO_CONFIG_DIR"] = self.config_dir

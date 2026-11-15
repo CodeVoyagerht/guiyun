@@ -41,6 +41,10 @@ jobs:
           python -m guiyun --version
           python -m guiyun --help
 
+      # 机型和日期的取证顺序、几个真实型号名——纯函数级，秒级跑完。
+      - name: 规则小测
+        run: python tests/rules.py
+
       # e2e 直接调 API：造夹具 → scan → plan → review → apply → clean → undo。
       - name: 端到端
         run: python tests/e2e.py
