@@ -6,7 +6,7 @@ compatibility: 需要 Python 3.11+，零第三方依赖（只用标准库）。�
 metadata:
   author: 天天（北屿升）
   version: "0.2.1"
-  repo: local
+  repo: https://github.com/CodeVoyagerht/guiyun
 ---
 
 # 归云 guiyun

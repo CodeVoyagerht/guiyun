@@ -150,4 +150,8 @@ tests/                  fixture 生成 + 端到端自检
 - `skills/guiyun/references/backend.md` — BaiduPCS-Go 契约、错误码与风控、`clean` 的安全边界
 - `preset/README.md` — 预设怎么装（junction + 重启 DSH）
 
+## 仓库
+
+<https://github.com/CodeVoyagerht/guiyun> —— 姊妹项目：<https://github.com/CodeVoyagerht/guicang>
+
 MIT.
