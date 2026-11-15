@@ -83,6 +83,10 @@ def cmd_scan(args) -> int:
     last = [0.0]
 
     def progress(path: str, done: int) -> None:
+        if done == 0:
+            # 第一帧总是「扫了 0 项」——本地几秒钟扫完的时候，屏幕上就只剩这
+            # 一句，看着像卡住了。等真数到东西再开始刷。
+            return
         now = time.time()
         if now - last[0] > 0.8:
             last[0] = now
@@ -408,6 +412,28 @@ def _describe(it) -> str:
     return " · ".join(bits)
 
 
+def _pin_hint(it) -> str:
+    """给一条待定项生成「钉住它」的命令尾巴，只补它缺的那几样。
+
+    以前 explain 里写死 `--place 地点名 --date 2024-05-18`：地点和日期都认出来的
+    条目也被建议去钉地点和日期，而真正卡住它的拍摄类型一个字没提。
+    """
+    hint = ""
+    if it.branch == "region" and not it.place:
+        hint += " --place 地点名"
+    if it.branch == "activity" and not it.activity:
+        hint += " --activity 活动名"
+    if not it.date:
+        hint += " --date 2024-05-18"
+    if (it.shot_type or "") in ("", "其他"):
+        # 只是给个能直接粘的样板值，不是帮你猜——真按无人机/相机给两个更顺手的
+        drone = (it.camera or "").lower()
+        hint += " --shot 航拍" if ("dji" in drone or "mavic" in drone or "mini" in drone) else " --shot 地拍"
+    if not it.camera:
+        hint += " --camera DJI Mavic 3"
+    return hint
+
+
 def cmd_review(args) -> int:
     cfg = _load_cfg(args)
     idx = Index(cfg.index_path)
@@ -479,14 +505,7 @@ def cmd_review(args) -> int:
         say(f"     {kind}；{_describe(it)}")
         if it.why:
             say(f"     为什么钉不住：{it.why}")
-        hint = ""
-        if it.branch == "region" and not it.place:
-            hint += " --place 地点名"
-        if it.branch == "activity" and not it.activity:
-            hint += " --activity 活动名"
-        if not it.date:
-            hint += " --date 2024-05-18"
-        say(f'     钉住：guiyun review --set "{it.src}"{hint}')
+        say(f"     钉住：guiyun review --set \"{it.src}\"{_pin_hint(it)}")
     say("")
     say("只钉你知道的那几样就行，剩下的机器照样补；钉完 review 还列在这里说明还缺东西。")
     say("园区区域、拍摄类型也能钉：--area 水世界 / --shot 航拍 / --branch 抖音")
@@ -661,7 +680,7 @@ def cmd_explain(args) -> int:
             say(f"    · {r}")
     if it.status == "pending" and it.why:
         say(f"  为什么不动：{it.why}")
-        say(f'  想让它动：guiyun review --set "{it.src}" --place 地点名 --date 2024-05-18')
+        say(f'  想让它动：guiyun review --set "{it.src}"{_pin_hint(it)}')
     if it.status != "skip":
         say(f"  落位：{it.dst}")
     return EXIT_OK

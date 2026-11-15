@@ -395,10 +395,3 @@ class BaiduBackend(Backend):
     def close(self) -> None:
         self._ls_cache.clear()
 
-
-def warmup(cli: str, config_dir: str | None = None) -> BaiduBackend:
-    """建后端并把首页列一次，确认真的通。给 doctor / scan 开头用。"""
-    backend = BaiduBackend(cli, config_dir=config_dir)
-    time.sleep(0)  # 留个位置：以后要在这里加调用间隔
-    backend.list_dir("/")
-    return backend

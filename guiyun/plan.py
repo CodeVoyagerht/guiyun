@@ -286,7 +286,10 @@ def build(cfg: Config, idx: Index) -> Plan:
         )
         target_dir = join(lib, *target.parts)
         it.target_dir = target_dir
-        it.date_seg = "/".join(target.parts[1:])  # 展示用，去掉第一层分支名
+        # 展示用：只看时间那几层。地点/活动/拍摄类型/机型各是一个字段，
+        # 混进「时间」里会打出「时间 2024/2024-05-18_05-24/地拍」这种东西。
+        not_time = {it.place or "", it.activity or "", it.shot_type or "", it.camera or "", it.edition or ""}
+        it.date_seg = "/".join(p for p in target.parts[1:] if p not in not_time)
         dst = join(target_dir, it.name)
 
         # 已经在正确位置了就别动

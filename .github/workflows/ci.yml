@@ -49,6 +49,10 @@ jobs:
       - name: 冷启动冒烟
         run: python tests/smoke_coldstart.py
 
+      # 撞名（目标目录已经占了同名）不能把整批卡死，得改名继续。
+      - name: 撞名
+        run: python tests/conflict.py
+
   lint:
     name: 技能与预设
     runs-on: ubuntu-latest
