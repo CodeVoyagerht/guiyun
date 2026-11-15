@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guiyun"
-version = "0.1.0"
+version = "0.2.0"
 description = "把网盘里的摄影/航拍素材按 项目/日期/机型 归位：只搬不删、全程记账、一条命令全部撤回"
 readme = "README.md"
 requires-python = ">=3.11"

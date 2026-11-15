@@ -210,9 +210,13 @@ def decide(
     rel = "/".join([*path_segments, filename] if filename else list(path_segments))
     make, model = _split_make(cam)
     when = _as_when(out.date, out.date_kind)
+    # 整堆搬的时候，filename 是目录名——它不带 `IMG_`/`MVI_` 这类前缀，
+    # 拍摄类型就只剩默认值。拿堆里第一个媒体文件的名字顶上，前缀证据才用得上。
+    member = _member_name(hint_names)
+    probe_name = filename if _is_media(filename) else (member or filename)
     probe = g["Probe"](
-        path=Path(rel or filename or "网盘"),
-        kind="video" if _looks_video(filename) else "photo",
+        path=Path("/".join([*path_segments, probe_name]) if probe_name else (rel or "网盘")),
+        kind="video" if _looks_video(probe_name or filename) else "photo",
         mtime=float(mtime or 0),
         captured_at=when if out.date_kind in ("exact", "year") else None,
         captured_source="filename",
@@ -323,6 +327,27 @@ def _as_when(iso: str | None, kind: str) -> datetime | None:
 def _looks_video(name: str) -> bool:
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
     return ext in {"mp4", "mov", "m4v", "avi", "mkv"}
+
+
+_MEDIA_EXTS = {
+    "jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "webp",
+    "raw", "arw", "cr2", "cr3", "nef", "dng", "orf", "rw2", "raf",
+    "mp4", "mov", "m4v", "avi", "mkv",
+}
+
+
+def _is_media(name: str) -> bool:
+    """这个名字本身是不是一个媒体文件（而不是整堆的目录名）。"""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    return ext in _MEDIA_EXTS
+
+
+def _member_name(hint_names) -> str:
+    """从一个目录堆的文件名里挑一个媒体文件，用来取前缀证据（IMG_/MVI_/GOPR…）。"""
+    for name in hint_names or ():
+        if _is_media(name):
+            return name
+    return ""
 
 
 @dataclass

@@ -77,7 +77,7 @@ guiyun clean --yes                # 真清（只删空的）
 | `status` | 配置 / 索引 / 最近几次 run | 否 |
 | `scan [--root R]...` | 抓目录树进索引 | **只读**（列目录） |
 | `plan [--md F] [--json] [--all] [--detail N]` | 出方案、打目标树 | 否 |
-| `review [--set P] [--project][--date][--camera] [--clear P]` | 列待定 / 钉住 / 撤销 | 否 |
+| `review [--set P] [--place][--area][--activity][--branch][--shot][--date][--camera] [--clear P]` | 列待定 / 钉住 / 撤销 | 否 |
 | `explain <路径>` | 一条凭什么这么判 | 否 |
 | `apply [--dry-run] [--limit N] [--yes]` | 搬 | **是（move）** |
 | `undo <run_id> [--dry-run]` | 反向搬回去 | **是（move）** |
@@ -107,8 +107,9 @@ root = "E:\\网盘镜像"  # local 后端的命名空间根：/摄影库 ↔ E:\
 - **云端读不到 EXIF。** 日期和机型只能从目录名、文件名推 —— 这是这条路的物理上限，不是 bug。
 - **文件修改时间一律不算日期。** 网盘上的 mtime 常常是上传时间，照它分会把一次拍摄拆成几十个文件夹
   且事后没人看得出来。这是 `is_auto` 里唯一一条硬否决。
-- 认不出的进 `待定/<项目或未认项目>/<日期或未知日期>/`；`guiyun explain <路径>` 会说清是谁赢了、
-  差在哪；`guiyun review --set` 钉住，机器推断永远压不过人。
+- 认不出的进 `待定/<年>/<周期>/<拍摄类型>/`；`guiyun explain <路径>` 会说清是谁赢了、
+  差在哪；`guiyun review --set` 钉住（`--place` / `--area` / `--activity` / `--branch` / `--shot` /
+  `--date` / `--camera`），机器推断永远压不过人。
 
 ## 已知限制
 
@@ -126,7 +127,8 @@ guiyun/                 引擎（零依赖）
 ├─ backends/            base 契约 + baidu（BaiduPCS-Go）+ local
 ├─ config.py            ~/.guiyun/guiyun.toml 读写与校验
 ├─ index.py             SQLite 索引 + 遍历 + 台账
-├─ rules.py             证据与阈值：项目 / 日期 / 机型
+├─ rules.py             文本证据：日期 / 机型（纯文本那两样）
+├─ decide.py            判定：借归藏的规则引擎，出分支/地点/园区区域/时间/拍摄类型
 ├─ manual.py            人工判定表（manual.json）
 ├─ plan.py              零副作用算方案
 ├─ apply.py             执行 + 撤销（写台账）
