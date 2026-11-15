@@ -300,8 +300,24 @@ def _srt_hint(decision, filename: str, hint_names, g) -> str:
     decision.shot_evidence = list(getattr(decision, "shot_evidence", []) or []) + [
         Evidence("srt:telemetry", "同目录有同名 .SRT 遥测：这堆是无人机拍的", 0.80)
     ]
-    g["manual"]._refresh_branch_and_status(decision)
+    _refresh(decision, g)
     return "同目录有同名 .SRT 遥测，按航拍算（0.80）"
+
+
+def _refresh(decision, g) -> None:
+    """改完判定字段后，让归藏重算分支和状态。
+
+    归藏没有公开这个入口（`manual.apply(decision, None)` 会直接返回、
+    不重算），只能用它的私有函数。私有函数被改名/删掉时要**说清楚是哪根
+    线断了**，而不是甩一个 AttributeError 让人猜。
+    """
+    fn = getattr(g["manual"], "_refresh_branch_and_status", None)
+    if fn is None:
+        raise ConfigError(
+            "归藏升级后把 manual._refresh_branch_and_status 改掉了，归云这边（guiyun/decide.py "
+            "的 _refresh）要跟着改：归云靠它把「改了拍摄类型」的结果重新算成分支和状态。"
+        )
+    fn(decision)
 
 
 def _why_pending(cfg: Config, gcfg, out: Verdict, decision) -> str:
